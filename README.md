@@ -1,2 +1,2 @@
-# Paper-2025-Fast-TDA-SPIE-Defense
+# Paper 2026-Fast TDA SPIE Defense
 working repository for the 2025 SPIE Defense paper ...

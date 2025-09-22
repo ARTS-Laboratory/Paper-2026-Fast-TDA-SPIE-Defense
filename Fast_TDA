@@ -175,3 +175,47 @@ features_df.to_csv("ellipse_features.csv", index=False)
 print(f"Total attempts: {total_count}")
 print(f"Failed fits: {failed_count}")
 print(f"Successful fits: {total_count - failed_count}")
+
+
+# Final Feature Plot 
+# ------------------
+
+plt.rcParams["font.family"] = "Times New Roman"
+plt.figure(figsize=(12, 8))
+keys = ["center_x", "center_y", "semi_major", "semi_minor", "angle", "max_consec_dist"]
+
+for idx, key in enumerate(keys):
+    plt.subplot(3, 2, idx+1)
+    plt.plot(time_axis, ellipse_features[key])
+    plt.title(key)
+    plt.axvline(x=0.020, color='red', linestyle='--') # impact time
+
+plt.tight_layout()
+plt.show()
+
+
+# pick one: "center_x", "center_y", "semi_major", "semi_minor", "angle", "max_consec_dist"
+# ---------------------------------------------------------------------------------------
+
+feature_key = "semi_major"   
+feature = ellipse_features[feature_key]
+
+# Define threshold (approximately)
+# -------------------------------
+threshold = 100
+
+plt.figure(figsize=(12, 5))
+plt.plot(input_time, input_f, color='black', label='Time series')
+
+for i in range(len(time_axis) - 1):
+    if feature[i] >= threshold:
+        plt.axvspan(time_axis[i], time_axis[i+1], facecolor='lightblue', alpha=0.3)
+    else:
+        plt.axvspan(time_axis[i], time_axis[i+1], facecolor='pink', alpha=0.3)
+
+plt.xlabel("Time (s)")
+plt.ylabel("Signal")
+plt.title(f"Time Series with Shading by Feature: {feature_key}")
+plt.legend()
+plt.show()
+

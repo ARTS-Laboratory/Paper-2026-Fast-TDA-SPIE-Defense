@@ -56,7 +56,7 @@ def max_consecutive_distance(X, Y):
     return np.max(dists)
 
 
-# Embeddding Theorme Parameters 
+# Embeddding Theorem Parameters 
 # Giotto-TDA package
 # ------------------------------
 

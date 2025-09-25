@@ -301,3 +301,103 @@ function [center_x, center_y, semi_major, semi_minor, angle] = conic_to_parametr
         semi_major = NaN; semi_minor = NaN;
     end
 end
+
+function [val,vec] = myjacobian (S)
+
+    for i=1:10000
+        S_last = S;
+    
+        % Cycle through all p < q pairs
+        for p = 1:n-1
+            for q = p+1:n
+                % Skip if off-diagonal element is zero
+                if abs(S(p,q)) < eps
+                    continue;
+                end
+    
+                if isnan(S(p,q))
+                    1;
+                end
+                
+                % Compute rotation angle
+                tau = (S(q,q) - S(p,p)) / (2 * S(p,q));
+                
+                %cos_theta = sqrt(0.5 * (1 + tau / sqrt(tau^2 + 1)))
+                %sin_theta = sign(S(p,q)) * sqrt(0.5 * (1 - tau / sqrt(tau^2 + 1)))
+    
+                t = -1 / (tau + sqrt(tau^2 + 1));
+                cos_theta = 1 / sqrt(1 + t^2)
+                sin_theta = t * cos_theta
+                
+                if isnan(sin_theta)
+                    1;
+                end
+    
+                % Construct Givens rotation matrix
+                J = eye(n);
+                J(p,p) = cos_theta;
+                J(q,q) = cos_theta;
+                J(p,q) = -sin_theta;
+                J(q,p) = sin_theta;
+    
+                S_temp = zeros(size(S,1),size(S,2));
+                for ii=1:size(S,1)
+                        for jj=1:size(S,2)
+                            for kk=1:size(S,1)
+                                p = kk; q = ii; % transpose
+                                if ii==p && kk == p || ii==q && kk == q
+                                    j_val = cos_theta;
+                                elseif ii==p && kk == q
+                                    j_val = -sin_theta;
+                                elseif ii==q && kk == p
+                                    j_val = sin_theta;
+                                elseif ii==jj
+                                    j_val = 1;
+                                else
+                                    j_val = 0;
+                                end
+    
+                                S_temp(ii,jj) = S_temp(ii,jj) + S(kk,jj)*j_val;
+                        end
+                    end
+                end
+    
+                S_temp2 = zeros(size(S,1),size(S,2));
+                for ii=1:size(S,1)
+                        for jj=1:size(S,2)
+                            for kk=1:size(S,1)
+                                p = kk; q = jj; % not transposed, but J is now the B matrix
+                                if ii==p && kk == p || ii==q && kk == q
+                                    j_val = cos_theta;
+                                elseif ii==p && kk == q
+                                    j_val = -sin_theta;
+                                elseif ii==q && kk == p
+                                    j_val = sin_theta;
+                                elseif ii==jj
+                                    j_val = 1;
+                                else
+                                    j_val = 0;
+                                end
+    
+                                S_temp2(ii,jj) = S_temp2(ii,jj) + S_temp(ii,kk)*j_val;
+                        end
+                    end
+                end
+    
+                % S_temp2 should match S
+                S_temp2
+                S = J' * S * J
+            end
+    
+        end
+    
+        if sum(S-S_last,"all")==0
+            break;
+        end
+    
+    end
+    
+    vals=sortrows(diag(S));
+    vecs = J;
+
+end

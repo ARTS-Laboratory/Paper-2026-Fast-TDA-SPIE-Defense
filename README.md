@@ -4,5 +4,5 @@ working repository for the 2025 SPIE Defense paper ...
 
 
 Reference paper 
-* Fitzgibbon, Andrew W., Maurizio Pilu, and Robert B. Fisher. "Direct least squares fitting of ellipses." Proceedings of 13th international conference on pattern recognition. Vol. 1. IEEE, 1996.
-* link https://ieeexplore.ieee.org/abstract/document/546029?casa_token=CsFRTgs4Bs4AAAAA:f5ayLLhvkk8jWmQ3RovrzvihsyDGiJLrXyXc06Ujq6ve7w-KCJgw0EWIt_5rLeq01ETMbeYWV2w
+* Fitzgibbon, Andrew, Maurizio Pilu, and Robert B. Fisher. "Direct least square fitting of ellipses." IEEE Transactions on pattern analysis and machine intelligence 21.5 (2002): 476-480.
+* https://ieeexplore.ieee.org/abstract/document/546029?casa_token=TLiQDUa-G4wAAAAA:21xK8JKIdTDYucoIQJpJ0oMQ2ZAW2ZWduS9TINPI-W7WxvL26KnSw2kMspmXOQtuKViuClYviZ8

@@ -159,18 +159,18 @@ for i = 1:step_size:num_windows
         ellipse_params_parametric(4,i),...
         ellipse_params_parametric(5,i)] = conic_to_parametric(ellipse_params(:,i));
 
-    % check if we fail to find ellipse parametric parameters
-    if any(isnan(ellipse_params_parametric(:,i)))
-        ellipse_params_parametric(:,i) = zeros(5,1);
-        x_left = i * dt;
-        y_bottom = min(ellipse_params_parametric,[],"all");
-        width = window_duration;
-        height = max(ellipse_params_parametric,[],"all") - min(ellipse_params_parametric,[],"all");
-        x_rect = [x_left x_left+width x_left+width x_left];
-        y_rect = [y_bottom y_bottom y_bottom+height y_bottom+height];
-        patch(ax4, x_rect, y_rect, [0.5 0.7 1], ...
-                        'EdgeColor', 'r', 'LineWidth', 1);
-    end
+    % % check if we fail to find ellipse parametric parameters
+    % if any(isnan(ellipse_params_parametric(:,i)))
+    %     ellipse_params_parametric(:,i) = zeros(5,1);
+    %     x_left = i * dt;
+    %     y_bottom = min(ellipse_params_parametric,[],"all");
+    %     width = window_duration;
+    %     height = max(ellipse_params_parametric,[],"all") - min(ellipse_params_parametric,[],"all");
+    %     x_rect = [x_left x_left+width x_left+width x_left];
+    %     y_rect = [y_bottom y_bottom y_bottom+height y_bottom+height];
+    %     patch(ax4, x_rect, y_rect, [0.5 0.7 1], ...
+    %                     'EdgeColor', 'r', 'LineWidth', 1);
+    % end
 
     for j = 1:4
         set(line_handles_parametric(j), 'XData', t_values, 'YData', ellipse_params_parametric(j, 1:step_size:i));
@@ -191,6 +191,8 @@ function ellipse_params = fit_ellipse(P)
     C = zeros(6,6);
     C(1,3) = 2; C(2,2) = -1; C(3,1) = 2;
     [eigvecs, eigvals] = eig(S, C);
+    %[eigvecs2, eigvals2] = myjacobian(S, C);
+    
     eigvals = diag(eigvals);
 
     finite_idx = isfinite(eigvals);
@@ -213,13 +215,14 @@ function ellipse_params = fit_ellipse(P)
     v = eigvecs(:, idx(1));
     % Enforce constraint a' C a = 1
     mu = 1 / sqrt(v' * C * v);
-    ellipse_params = mu * v;
+    ellipse_params = v;
+    ellipse_params = mu * v; %COMMENTED OUT, EQUATION 9 FROM PAPER
     
     % Validate ellipse: check 4ac - b^2 ≈ 1 and discriminant
     a = ellipse_params(1); b = ellipse_params(2); c = ellipse_params(3);
     if abs(4*a*c - b^2 - 1) > 1e-5 || (b^2 - 4*a*c) >= 0
         warning('Fit may not be a valid ellipse; forcing to zero.');
-        ellipse_params = zeros(6,1);
+        %ellipse_params = zeros(6,1);
     end
 end
 
@@ -302,102 +305,179 @@ function [center_x, center_y, semi_major, semi_minor, angle] = conic_to_parametr
     end
 end
 
-function [val,vec] = myjacobian (S)
+function [vec, val] = myjacobian(S, C)
+    if nargin < 2
+        C = eye(size(S, 1));
+    end
+    n = size(S, 1);
+    tol = 1e-10;  % Convergence tolerance (adjust as needed)
+    V = eye(n);   % Accumulator for eigenvectors
 
-    for i=1:10000
+    for iter = 1:10000
         S_last = S;
-    
-        % Cycle through all p < q pairs
+        C_last = C;
         for p = 1:n-1
             for q = p+1:n
-                % Skip if off-diagonal element is zero
-                if abs(S(p,q)) < eps
+                % Skip if off-diagonal element is small
+                if abs(S(p,q)) < tol
                     continue;
                 end
-    
-                if isnan(S(p,q))
-                    1;
+
+                % Compute parameters for generalized transformation
+                app = S(p,p); apq = S(p,q); aqq = S(q,q);
+                bpp = C(p,p); bpq = C(p,q); bqq = C(q,q);
+                A1 = app * bpq - apq * bpp;
+                B1 = app * bqq - aqq * bpp;
+                C1 = apq * bqq - aqq * bpq;
+                disc = B1^2 - 4 * A1 * C1;
+                if disc < 0
+                    % Handle complex roots (rare for definite pencils; skip or warn)
+                    continue;
                 end
-                
-                % Compute rotation angle
-                tau = (S(q,q) - S(p,p)) / (2 * S(p,q));
-                
-                %cos_theta = sqrt(0.5 * (1 + tau / sqrt(tau^2 + 1)))
-                %sin_theta = sign(S(p,q)) * sqrt(0.5 * (1 - tau / sqrt(tau^2 + 1)))
-    
-                t = -1 / (tau + sqrt(tau^2 + 1));
-                cos_theta = 1 / sqrt(1 + t^2)
-                sin_theta = t * cos_theta
-                
-                if isnan(sin_theta)
-                    1;
+                if abs(A1) < tol
+                    if abs(B1) < tol
+                        continue;  % Indeterminate; skip
+                    end
+                    theta2 = -C1 / B1;
+                else
+                    sqrt_disc = sqrt(disc);
+                    theta2_plus = (-B1 + sqrt_disc) / (2 * A1);
+                    theta2_minus = (-B1 - sqrt_disc) / (2 * A1);
+                    % Choose the root with smaller magnitude (analogous to smaller angle)
+                    if abs(theta2_plus) < abs(theta2_minus)
+                        theta2 = theta2_plus;
+                    else
+                        theta2 = theta2_minus;
+                    end
                 end
-    
-                % Construct Givens rotation matrix
-                J = eye(n);
-                J(p,p) = cos_theta;
-                J(q,q) = cos_theta;
-                J(p,q) = -sin_theta;
-                J(q,p) = sin_theta;
-    
-                S_temp = zeros(size(S,1),size(S,2));
-                for ii=1:size(S,1)
-                        for jj=1:size(S,2)
-                            for kk=1:size(S,1)
-                                p = kk; q = ii; % transpose
-                                if ii==p && kk == p || ii==q && kk == q
-                                    j_val = cos_theta;
-                                elseif ii==p && kk == q
-                                    j_val = -sin_theta;
-                                elseif ii==q && kk == p
-                                    j_val = sin_theta;
-                                elseif ii==jj
-                                    j_val = 1;
-                                else
-                                    j_val = 0;
-                                end
-    
-                                S_temp(ii,jj) = S_temp(ii,jj) + S(kk,jj)*j_val;
+                % Compute theta1 (use S-based; could check against C-based for consistency)
+                denom = apq * theta2 + aqq;
+                if abs(denom) < tol
+                    continue;  % Avoid division by zero
+                end
+                theta1 = - (app * theta2 + apq) / denom;
+                if isnan(theta1) || isnan(theta2)
+                    continue;
+                end
+
+                % Update S: First compute S_temp = J' * S (loop for efficiency)
+                S_temp = zeros(n, n);
+                for ii = 1:n
+                    for jj = 1:n
+                        for kk = 1:n
+                            if ii == p && kk == p
+                                j_val = 1;
+                            elseif ii == p && kk == q
+                                j_val = theta1;
+                            elseif ii == q && kk == p
+                                j_val = theta2;
+                            elseif ii == q && kk == q
+                                j_val = 1;
+                            elseif ii == kk
+                                j_val = 1;
+                            else
+                                j_val = 0;
+                            end
+                            S_temp(ii, jj) = S_temp(ii, jj) + S(kk, jj) * j_val;
                         end
                     end
                 end
-    
-                S_temp2 = zeros(size(S,1),size(S,2));
-                for ii=1:size(S,1)
-                        for jj=1:size(S,2)
-                            for kk=1:size(S,1)
-                                p = kk; q = jj; % not transposed, but J is now the B matrix
-                                if ii==p && kk == p || ii==q && kk == q
-                                    j_val = cos_theta;
-                                elseif ii==p && kk == q
-                                    j_val = -sin_theta;
-                                elseif ii==q && kk == p
-                                    j_val = sin_theta;
-                                elseif ii==jj
-                                    j_val = 1;
-                                else
-                                    j_val = 0;
-                                end
-    
-                                S_temp2(ii,jj) = S_temp2(ii,jj) + S_temp(ii,kk)*j_val;
+                % Then S = S_temp * J
+                S_temp2 = zeros(n, n);
+                for ii = 1:n
+                    for jj = 1:n
+                        for kk = 1:n
+                            if kk == p && jj == p
+                                j_val = 1;
+                            elseif kk == p && jj == q
+                                j_val = theta2;
+                            elseif kk == q && jj == p
+                                j_val = theta1;
+                            elseif kk == q && jj == q
+                                j_val = 1;
+                            elseif kk == jj
+                                j_val = 1;
+                            else
+                                j_val = 0;
+                            end
+                            S_temp2(ii, jj) = S_temp2(ii, jj) + S_temp(ii, kk) * j_val;
                         end
                     end
                 end
-    
-                % S_temp2 should match S
-                S_temp2
-                S = J' * S * J
+                S = S_temp2;
+
+                % Repeat identical updates for C
+                C_temp = zeros(n, n);
+                for ii = 1:n
+                    for jj = 1:n
+                        for kk = 1:n
+                            if ii == p && kk == p
+                                j_val = 1;
+                            elseif ii == p && kk == q
+                                j_val = theta1;
+                            elseif ii == q && kk == p
+                                j_val = theta2;
+                            elseif ii == q && kk == q
+                                j_val = 1;
+                            elseif ii == kk
+                                j_val = 1;
+                            else
+                                j_val = 0;
+                            end
+                            C_temp(ii, jj) = C_temp(ii, jj) + C(kk, jj) * j_val;
+                        end
+                    end
+                end
+                C_temp2 = zeros(n, n);
+                for ii = 1:n
+                    for jj = 1:n
+                        for kk = 1:n
+                            if kk == p && jj == p
+                                j_val = 1;
+                            elseif kk == p && jj == q
+                                j_val = theta2;
+                            elseif kk == q && jj == p
+                                j_val = theta1;
+                            elseif kk == q && jj == q
+                                j_val = 1;
+                            elseif kk == jj
+                                j_val = 1;
+                            else
+                                j_val = 0;
+                            end
+                            C_temp2(ii, jj) = C_temp2(ii, jj) + C_temp(ii, kk) * j_val;
+                        end
+                    end
+                end
+                C = C_temp2;
+
+                % Accumulate eigenvectors (update columns p and q)
+                vp = V(:, p);
+                vq = V(:, q);
+                V(:, p) = vp * 1 + vq * theta1;
+                V(:, q) = vp * theta2 + vq * 1;
             end
-    
         end
-    
-        if sum(S-S_last,"all")==0
+        % Better stopping: check off-diagonal norms
+        off_S = norm(S - diag(diag(S)), 'fro');
+        off_C = norm(C - diag(diag(C)), 'fro');
+        if off_S < tol && off_C < tol
             break;
         end
-    
     end
-    
-    vals=sortrows(diag(S));
-    vecs = J;
 
+    % Compute eigenvalues as S_ii / C_ii
+    vals = diag(S) ./ diag(C);
+
+    % Normalize all eigenvectors to Euclidean norm 1 (to better match MATLAB's eig)
+    for i = 1:n
+        normv = norm(V(:, i));
+        if normv > tol
+            V(:, i) = V(:, i) / normv;
+        end
+    end
+
+    % Sort by eigenvalues and reorder eigenvectors
+    [val, idx] = sort(vals);
+    vec = V(:, idx);
 end
